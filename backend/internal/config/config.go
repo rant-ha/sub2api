@@ -2301,6 +2301,13 @@ func GetServerAddress() string {
 	v.SetDefault("server.host", "0.0.0.0")
 	v.SetDefault("server.port", 8080)
 
+	// 兼容 Heroku 的 PORT 环境变量
+	if herokuPort := os.Getenv("PORT"); herokuPort != "" {
+    	if p, err := strconv.Atoi(herokuPort); err == nil {
+        	v.Set("server.port", p)
+    	}
+	}
+
 	// Try to read config file (ignore errors if not found)
 	_ = v.ReadInConfig()
 
