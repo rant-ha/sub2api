@@ -1,0 +1,5 @@
+{
+  "name": "sub2api-docker",
+  "description": "Deploy sub2api via Docker",
+  "stack": "container"
+}
