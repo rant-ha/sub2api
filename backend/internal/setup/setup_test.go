@@ -87,3 +87,92 @@ func TestWriteConfigFileKeepsDefaultUserConcurrency(t *testing.T) {
 		t.Fatalf("config missing default user concurrency, got:\n%s", string(data))
 	}
 }
+
+func TestAutoSetupEnabledFromURLPair(t *testing.T) {
+	t.Setenv("AUTO_SETUP", "")
+	t.Setenv("DATABASE_URL", "postgres://user:pass@db.example.com:5432/sub2api")
+	t.Setenv("REDIS_URL", "redis://:pass@redis.example.com:6379/0")
+
+	if !AutoSetupEnabled() {
+		t.Fatalf("AutoSetupEnabled() = false, want true when DATABASE_URL and REDIS_URL are set")
+	}
+}
+
+func TestAutoSetupEnabledExplicitFalseWins(t *testing.T) {
+	t.Setenv("AUTO_SETUP", "false")
+	t.Setenv("DATABASE_URL", "postgres://user:pass@db.example.com:5432/sub2api")
+	t.Setenv("REDIS_URL", "redis://:pass@redis.example.com:6379/0")
+
+	if AutoSetupEnabled() {
+		t.Fatalf("AutoSetupEnabled() = true, want false when AUTO_SETUP=false")
+	}
+}
+
+func TestAutoSetupEnabledInvalidURLPairFallsBackToFalse(t *testing.T) {
+	t.Setenv("AUTO_SETUP", "")
+	t.Setenv("DATABASE_URL", "postgres://")
+	t.Setenv("REDIS_URL", "redis://:pass@redis.example.com:6379/0")
+
+	if AutoSetupEnabled() {
+		t.Fatalf("AutoSetupEnabled() = true, want false for malformed DATABASE_URL")
+	}
+}
+
+func TestAutoSetupEnabledExplicitTrueWinsEvenWithInvalidURLs(t *testing.T) {
+	t.Setenv("AUTO_SETUP", "true")
+	t.Setenv("DATABASE_URL", "postgres://")
+	t.Setenv("REDIS_URL", "redis://")
+
+	if !AutoSetupEnabled() {
+		t.Fatalf("AutoSetupEnabled() = false, want true when AUTO_SETUP=true")
+	}
+}
+
+func TestParseDatabaseURL(t *testing.T) {
+	cfg, err := parseDatabaseURL("postgres://dbuser:dbpass@db.example.com:5433/sub2api?sslmode=require")
+	if err != nil {
+		t.Fatalf("parseDatabaseURL() error = %v", err)
+	}
+
+	if cfg.Host != "db.example.com" {
+		t.Fatalf("Host = %q, want %q", cfg.Host, "db.example.com")
+	}
+	if cfg.Port != 5433 {
+		t.Fatalf("Port = %d, want %d", cfg.Port, 5433)
+	}
+	if cfg.User != "dbuser" {
+		t.Fatalf("User = %q, want %q", cfg.User, "dbuser")
+	}
+	if cfg.Password != "dbpass" {
+		t.Fatalf("Password = %q, want %q", cfg.Password, "dbpass")
+	}
+	if cfg.DBName != "sub2api" {
+		t.Fatalf("DBName = %q, want %q", cfg.DBName, "sub2api")
+	}
+	if cfg.SSLMode != "require" {
+		t.Fatalf("SSLMode = %q, want %q", cfg.SSLMode, "require")
+	}
+}
+
+func TestParseRedisURL(t *testing.T) {
+	cfg, err := parseRedisURL("rediss://:redispass@redis.example.com:6380/2")
+	if err != nil {
+		t.Fatalf("parseRedisURL() error = %v", err)
+	}
+
+	if cfg.Host != "redis.example.com" {
+		t.Fatalf("Host = %q, want %q", cfg.Host, "redis.example.com")
+	}
+	if cfg.Port != 6380 {
+		t.Fatalf("Port = %d, want %d", cfg.Port, 6380)
+	}
+	if cfg.Password != "redispass" {
+		t.Fatalf("Password = %q, want %q", cfg.Password, "redispass")
+	}
+	if cfg.DB != 2 {
+		t.Fatalf("DB = %d, want %d", cfg.DB, 2)
+	}
+	if !cfg.EnableTLS {
+		t.Fatalf("EnableTLS = false, want true")
+	}
+}

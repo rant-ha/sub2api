@@ -618,6 +618,21 @@ func TestGetServerAddressFromEnv(t *testing.T) {
 	}
 }
 
+func TestLoadForBootstrapUsesHerokuPortWhenServerPortMissing(t *testing.T) {
+	viper.Reset()
+	t.Setenv("JWT_SECRET", "")
+	t.Setenv("SERVER_PORT", "")
+	t.Setenv("PORT", "5234")
+
+	cfg, err := LoadForBootstrap()
+	if err != nil {
+		t.Fatalf("LoadForBootstrap() error: %v", err)
+	}
+	if cfg.Server.Port != 5234 {
+		t.Fatalf("LoadForBootstrap().Server.Port = %d, want %d", cfg.Server.Port, 5234)
+	}
+}
+
 func TestValidateAbsoluteHTTPURL(t *testing.T) {
 	if err := ValidateAbsoluteHTTPURL("https://example.com/path"); err != nil {
 		t.Fatalf("ValidateAbsoluteHTTPURL valid url error: %v", err)

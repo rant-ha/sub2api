@@ -1014,6 +1014,15 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 		return nil, fmt.Errorf("unmarshal config error: %w", err)
 	}
 
+	// Heroku compatibility: respect PORT when SERVER_PORT is not provided.
+	if strings.TrimSpace(os.Getenv("SERVER_PORT")) == "" {
+		if herokuPort := strings.TrimSpace(os.Getenv("PORT")); herokuPort != "" {
+			if p, err := strconv.Atoi(herokuPort); err == nil && p > 0 && p <= 65535 {
+				cfg.Server.Port = p
+			}
+		}
+	}
+
 	cfg.RunMode = NormalizeRunMode(cfg.RunMode)
 	cfg.Server.Mode = strings.ToLower(strings.TrimSpace(cfg.Server.Mode))
 	if cfg.Server.Mode == "" {
