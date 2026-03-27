@@ -521,7 +521,7 @@ func AutoSetupEnabled() bool {
 	// Heroku-style convenience: when setup artifacts are missing and both URL
 	// variables exist, enable auto setup implicitly.
 	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
-	redisURL := strings.TrimSpace(os.Getenv("REDIS_URL"))
+	redisURL := getRedisURLFromEnv()
 	if databaseURL == "" || redisURL == "" {
 		return false
 	}
@@ -565,6 +565,13 @@ func getEnvBoolOrDefault(key string, defaultValue bool) bool {
 	default:
 		return defaultValue
 	}
+}
+
+func getRedisURLFromEnv() string {
+	if v := strings.TrimSpace(os.Getenv("REDIS_TLS_URL")); v != "" {
+		return v
+	}
+	return strings.TrimSpace(os.Getenv("REDIS_URL"))
 }
 
 func parseDatabaseURL(raw string) (DatabaseConfig, error) {
@@ -662,12 +669,22 @@ func parseRedisURL(raw string) (RedisConfig, error) {
 		db = parsedDB
 	}
 
+	enableTLS := scheme == "rediss"
+	if !enableTLS {
+		q := u.Query()
+		if strings.EqualFold(strings.TrimSpace(q.Get("ssl")), "true") ||
+			strings.EqualFold(strings.TrimSpace(q.Get("tls")), "true") ||
+			strings.EqualFold(strings.TrimSpace(q.Get("sslmode")), "require") {
+			enableTLS = true
+		}
+	}
+
 	return RedisConfig{
 		Host:      host,
 		Port:      port,
 		Password:  password,
 		DB:        db,
-		EnableTLS: scheme == "rediss",
+		EnableTLS: enableTLS,
 	}, nil
 }
 
@@ -724,10 +741,10 @@ func AutoSetupFromEnv() error {
 		cfg.Database = parsedDatabase
 	}
 
-	if redisURL := strings.TrimSpace(os.Getenv("REDIS_URL")); redisURL != "" {
+	if redisURL := getRedisURLFromEnv(); redisURL != "" {
 		parsedRedis, err := parseRedisURL(redisURL)
 		if err != nil {
-			return fmt.Errorf("invalid REDIS_URL: %w", err)
+			return fmt.Errorf("invalid REDIS_URL/REDIS_TLS_URL: %w", err)
 		}
 		cfg.Redis = parsedRedis
 	}

@@ -176,3 +176,24 @@ func TestParseRedisURL(t *testing.T) {
 		t.Fatalf("EnableTLS = false, want true")
 	}
 }
+
+func TestParseRedisURLTLSFromQuery(t *testing.T) {
+	cfg, err := parseRedisURL("redis://:redispass@redis.example.com:6379/0?ssl=true")
+	if err != nil {
+		t.Fatalf("parseRedisURL() error = %v", err)
+	}
+	if !cfg.EnableTLS {
+		t.Fatalf("EnableTLS = false, want true when ssl=true")
+	}
+}
+
+func TestGetRedisURLFromEnvPrefersTLSURL(t *testing.T) {
+	t.Setenv("REDIS_URL", "redis://:p@redis.example.com:6379/0")
+	t.Setenv("REDIS_TLS_URL", "rediss://:p@secure-redis.example.com:6380/0")
+
+	got := getRedisURLFromEnv()
+	want := "rediss://:p@secure-redis.example.com:6380/0"
+	if got != want {
+		t.Fatalf("getRedisURLFromEnv() = %q, want %q", got, want)
+	}
+}
