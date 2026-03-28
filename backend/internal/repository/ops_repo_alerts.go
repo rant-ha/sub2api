@@ -334,8 +334,7 @@ func (r *opsRepository) ListAlertEvents(ctx context.Context, filter *service.Ops
 	}
 
 	where, args := buildOpsAlertEventsWhere(filter)
-	args = append(args, limit)
-	limitArg := "$" + itoa(len(args))
+	limitSQL := fmt.Sprintf("%d", limit)
 
 	q := `
 SELECT
@@ -355,7 +354,7 @@ SELECT
 FROM ops_alert_events
 ` + where + `
 ORDER BY fired_at DESC, id DESC
-LIMIT ` + limitArg
+LIMIT ` + limitSQL
 
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
