@@ -243,34 +243,54 @@ func TestDatabaseConnection(cfg *DatabaseConfig) error {
 
 // TestRedisConnection tests the Redis connection
 func TestRedisConnection(cfg *RedisConfig) error {
-	opts := &redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
-		Password: cfg.Password,
-		DB:       cfg.DB,
+	ping := func(enableTLS bool) error {
+		opts := &redis.Options{
+			Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+			Password: cfg.Password,
+			DB:       cfg.DB,
+		}
+
+		if enableTLS {
+			opts.TLSConfig = &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				ServerName: cfg.Host,
+			}
+		}
+
+		rdb := redis.NewClient(opts)
+		defer func() {
+			if err := rdb.Close(); err != nil {
+				logger.LegacyPrintf("setup", "failed to close redis client: %v", err)
+			}
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		return rdb.Ping(ctx).Err()
 	}
 
-	if cfg.EnableTLS {
-		opts.TLSConfig = &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			ServerName: cfg.Host,
+	shouldRetryWithTLS := func(err error) bool {
+		if err == nil {
+			return false
 		}
+		errText := strings.ToLower(strings.TrimSpace(err.Error()))
+		return strings.Contains(errText, "eof") || strings.Contains(errText, "connection reset by peer")
 	}
 
-	rdb := redis.NewClient(opts)
-	defer func() {
-		if err := rdb.Close(); err != nil {
-			logger.LegacyPrintf("setup", "failed to close redis client: %v", err)
+	if err := ping(cfg.EnableTLS); err == nil {
+		return nil
+	} else if !cfg.EnableTLS && shouldRetryWithTLS(err) {
+		// Managed Redis services may enforce TLS while exposing redis:// style URLs.
+		if retryErr := ping(true); retryErr == nil {
+			cfg.EnableTLS = true
+			logger.LegacyPrintf("setup", "%s", "Redis endpoint appears to require TLS; auto-enabled TLS for setup")
+			return nil
 		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := rdb.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("ping failed: %w", err)
+	} else {
 		return fmt.Errorf("ping failed: %w", err)
 	}
-
-	return nil
 }
 
 // Install performs the installation with the given configuration

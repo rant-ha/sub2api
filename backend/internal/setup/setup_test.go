@@ -177,6 +177,16 @@ func TestParseRedisURL(t *testing.T) {
 	}
 }
 
+func TestParseRedisURLTLSByQueryParameter(t *testing.T) {
+	cfg, err := parseRedisURL("redis://:redispass@redis.example.com:6379/0?ssl=true")
+	if err != nil {
+		t.Fatalf("parseRedisURL() error = %v", err)
+	}
+	if !cfg.EnableTLS {
+		t.Fatalf("EnableTLS = false, want true when ssl=true")
+	}
+}
+
 func TestParseRedisURLTLSFromQuery(t *testing.T) {
 	cfg, err := parseRedisURL("redis://:redispass@redis.example.com:6379/0?ssl=true")
 	if err != nil {
